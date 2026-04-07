@@ -19,7 +19,7 @@ export default function TextInput({ value, onChange, theme }: Props) {
             onChange(raw)
           }
         }}
-        placeholder="ここに文字を入力&#10;（改行で段を分けられます）"
+        placeholder="ここに文字を入力"
         rows={2}
         className="w-full text-center text-2xl py-4 px-6 rounded-lg border outline-none transition-colors resize-none"
         style={{
