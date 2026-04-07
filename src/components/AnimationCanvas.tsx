@@ -1,12 +1,10 @@
-import { useMemo } from 'react'
+import { useMemo, forwardRef, useImperativeHandle, useRef } from 'react'
 import { kanaData } from '../data/kana-strokes'
-
-type Style = 'fude' | 'pen'
-type Speed = 'slow' | 'normal' | 'fast'
+import type { FontStyle, Speed } from '../App'
 
 interface Props {
   text: string
-  style: Style
+  fontStyle: FontStyle
   speed: Speed
   playing: boolean
   playKey: number
@@ -19,109 +17,143 @@ const SPEED_MAP: Record<Speed, { strokeDuration: number; strokeGap: number; char
   fast: { strokeDuration: 0.2, strokeGap: 0.04, charGap: 0.08 },
 }
 
-export default function AnimationCanvas({ text, style, speed, playing, playKey, theme }: Props) {
-  const chars = [...text].slice(0, 20)
-  const timing = SPEED_MAP[speed]
-  const strokeColor = theme === 'dark' ? '#e8e4dc' : '#1a1a1a'
+const FONT_MAP: Record<FontStyle, string> = {
+  gothic: "'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif",
+  mincho: "'Zen Old Mincho', 'Hiragino Mincho ProN', serif",
+}
 
-  // Calculate layout: how many chars per row
-  const charsPerRow = chars.length <= 4 ? chars.length : chars.length <= 8 ? 4 : 5
-  const rows = Math.ceil(chars.length / charsPerRow)
-  const cellSize = 109
-  const gap = 8
-  const svgWidth = charsPerRow * (cellSize + gap) - gap
-  const svgHeight = rows * (cellSize + gap) - gap
+const AnimationCanvas = forwardRef<{ getCanvasEl: () => HTMLDivElement | null }, Props>(
+  ({ text, fontStyle, speed, playing, playKey, theme }, ref) => {
+    const containerRef = useRef<HTMLDivElement>(null)
 
-  // Pre-calculate cumulative delays
-  const charDelays = useMemo(() => {
-    let cumulative = 0
-    return chars.map((char) => {
-      const delay = cumulative
-      const data = kanaData[char]
-      if (data) {
-        cumulative += data.strokes.length * (timing.strokeDuration + timing.strokeGap) + timing.charGap
-      } else {
-        cumulative += timing.strokeDuration + timing.charGap
+    useImperativeHandle(ref, () => ({
+      getCanvasEl: () => containerRef.current,
+    }))
+
+    const timing = SPEED_MAP[speed]
+    const strokeColor = theme === 'dark' ? '#e8e4dc' : '#1a1a1a'
+
+    // Split text into lines by \n, then each line into chars
+    const lines = text.split('\n').map((line) => [...line])
+    const allChars = lines.flat()
+
+    const cellSize = 109
+    const gap = 12
+    const rowGap = 16
+
+    // Calculate SVG dimensions
+    const maxCols = Math.max(...lines.map((l) => l.length), 1)
+    const svgWidth = maxCols * (cellSize + gap) - gap
+    const svgHeight = lines.length * (cellSize + rowGap) - rowGap
+
+    // Calculate cumulative delays across ALL chars (left-to-right, top-to-bottom)
+    const charDelayMap = useMemo(() => {
+      const map = new Map<string, number>()
+      let cumulative = 0
+      let idx = 0
+      for (let row = 0; row < lines.length; row++) {
+        for (let col = 0; col < lines[row].length; col++) {
+          const char = lines[row][col]
+          const key = `${row}-${col}`
+          map.set(key, cumulative)
+          const data = kanaData[char]
+          if (data) {
+            cumulative += data.strokes.length * (timing.strokeDuration + timing.strokeGap) + timing.charGap
+          } else {
+            cumulative += timing.strokeDuration + timing.charGap
+          }
+          idx++
+        }
       }
-      return delay
-    })
-  }, [chars.join(''), speed])
+      return map
+    }, [text, speed])
 
-  if (chars.length === 0) {
+    if (allChars.length === 0) {
+      return (
+        <div ref={containerRef} className="flex items-center justify-center min-h-[140px] opacity-25">
+          <p className="text-lg">文字を入力してください</p>
+        </div>
+      )
+    }
+
     return (
-      <div className="flex items-center justify-center min-h-[200px] opacity-30">
-        <p className="text-lg">文字を入力してください</p>
+      <div ref={containerRef} className="flex justify-center w-full">
+        <svg
+          key={playKey}
+          viewBox={`0 0 ${svgWidth} ${svgHeight}`}
+          className="w-full"
+          style={{
+            maxHeight: '50vh',
+            maxWidth: `${Math.min(maxCols * 80, 800)}px`,
+          }}
+          preserveAspectRatio="xMidYMid meet"
+        >
+          {lines.map((lineChars, row) =>
+            lineChars.map((char, col) => {
+              const x = col * (cellSize + gap)
+              const y = row * (cellSize + rowGap)
+              const data = kanaData[char]
+              const baseDelay = charDelayMap.get(`${row}-${col}`) || 0
+              const strokeWidth = fontStyle === 'gothic' ? 5 : 3
+
+              if (!data) {
+                return (
+                  <g key={`${playKey}-${row}-${col}`} transform={`translate(${x}, ${y})`}>
+                    <text
+                      x={cellSize / 2}
+                      y={cellSize / 2 + 16}
+                      textAnchor="middle"
+                      fontSize="70"
+                      fill={strokeColor}
+                      fontFamily={FONT_MAP[fontStyle]}
+                      className={playing ? 'char-fadein' : ''}
+                      style={playing ? { '--delay': `${baseDelay}s` } as React.CSSProperties : { opacity: 1 }}
+                    >
+                      {char}
+                    </text>
+                  </g>
+                )
+              }
+
+              return (
+                <g key={`${playKey}-${row}-${col}`} transform={`translate(${x}, ${y})`}>
+                  {data.strokes.map((stroke, si) => {
+                    const strokeDelay = baseDelay + si * (timing.strokeDuration + timing.strokeGap)
+                    return (
+                      <path
+                        key={si}
+                        d={stroke.d}
+                        fill="none"
+                        stroke={strokeColor}
+                        strokeWidth={strokeWidth}
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        className={playing ? 'stroke-animate' : ''}
+                        style={
+                          playing
+                            ? {
+                                strokeDasharray: stroke.length,
+                                strokeDashoffset: stroke.length,
+                                '--duration': `${timing.strokeDuration}s`,
+                                '--delay': `${strokeDelay}s`,
+                              } as React.CSSProperties
+                            : {
+                                strokeDasharray: 'none',
+                                strokeDashoffset: 0,
+                              }
+                        }
+                      />
+                    )
+                  })}
+                </g>
+              )
+            })
+          )}
+        </svg>
       </div>
     )
   }
+)
 
-  return (
-    <div className="flex justify-center">
-      <svg
-        key={playKey}
-        viewBox={`0 0 ${svgWidth} ${svgHeight}`}
-        className="w-full max-w-[600px]"
-        style={{ maxHeight: '60vh' }}
-      >
-        {chars.map((char, i) => {
-          const col = i % charsPerRow
-          const row = Math.floor(i / charsPerRow)
-          const x = col * (cellSize + gap)
-          const y = row * (cellSize + gap)
-          const data = kanaData[char]
-          const baseDelay = charDelays[i]
-
-          if (!data) {
-            // Unsupported character: fade in
-            return (
-              <g key={`${playKey}-${i}`} transform={`translate(${x}, ${y})`}>
-                <text
-                  x={cellSize / 2}
-                  y={cellSize / 2 + 12}
-                  textAnchor="middle"
-                  fontSize="60"
-                  fill={strokeColor}
-                  fontFamily="'Zen Old Mincho', serif"
-                  className={playing ? 'char-fadein' : ''}
-                  style={playing ? { '--delay': `${baseDelay}s` } as React.CSSProperties : { opacity: 1 }}
-                >
-                  {char}
-                </text>
-              </g>
-            )
-          }
-
-          return (
-            <g key={`${playKey}-${i}`} transform={`translate(${x}, ${y})`}>
-              {data.strokes.map((stroke, si) => {
-                const strokeDelay = baseDelay + si * (timing.strokeDuration + timing.strokeGap)
-                return (
-                  <path
-                    key={si}
-                    d={stroke.d}
-                    stroke={strokeColor}
-                    className={`${playing ? 'stroke-animate' : ''} stroke-${style}`}
-                    style={
-                      playing
-                        ? {
-                            strokeDasharray: stroke.length,
-                            strokeDashoffset: stroke.length,
-                            '--duration': `${timing.strokeDuration}s`,
-                            '--delay': `${strokeDelay}s`,
-                          } as React.CSSProperties
-                        : {
-                            fill: 'none',
-                            strokeDasharray: 'none',
-                            strokeDashoffset: 0,
-                          }
-                    }
-                  />
-                )
-              })}
-            </g>
-          )
-        })}
-      </svg>
-    </div>
-  )
-}
+AnimationCanvas.displayName = 'AnimationCanvas'
+export default AnimationCanvas

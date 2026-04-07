@@ -1,21 +1,21 @@
-type Style = 'fude' | 'pen'
-type Speed = 'slow' | 'normal' | 'fast'
+import type { FontStyle, Speed } from '../App'
 
 interface Props {
-  style: Style
-  onStyleChange: (s: Style) => void
+  fontStyle: FontStyle
+  onFontStyleChange: (s: FontStyle) => void
   speed: Speed
   onSpeedChange: (s: Speed) => void
   onPlay: () => void
+  onShare: () => void
   text: string
   theme: 'light' | 'dark'
   onThemeToggle: () => void
-  onShare: () => void
+  recording: boolean
 }
 
-const STYLES: { value: Style; label: string }[] = [
-  { value: 'fude', label: '筆' },
-  { value: 'pen', label: 'ペン' },
+const STYLES: { value: FontStyle; label: string }[] = [
+  { value: 'mincho', label: '明朝' },
+  { value: 'gothic', label: 'ゴシック' },
 ]
 
 const SPEEDS: { value: Speed; label: string }[] = [
@@ -25,38 +25,31 @@ const SPEEDS: { value: Speed; label: string }[] = [
 ]
 
 export default function Controls({
-  style, onStyleChange,
+  fontStyle, onFontStyleChange,
   speed, onSpeedChange,
-  onPlay, text,
+  onPlay, onShare, text,
   theme, onThemeToggle,
-  onShare,
+  recording,
 }: Props) {
-  const btnBase = "px-4 py-2 rounded-md text-sm transition-all cursor-pointer border"
-  const activeBg = theme === 'dark'
-    ? 'rgba(255,255,255,0.12)'
-    : 'rgba(0,0,0,0.08)'
-  const activeBorder = theme === 'dark'
-    ? 'rgba(255,255,255,0.25)'
-    : 'rgba(0,0,0,0.2)'
-  const inactiveBorder = theme === 'dark'
-    ? 'rgba(255,255,255,0.08)'
-    : 'rgba(0,0,0,0.06)'
+  const btnBase = "px-4 py-2.5 rounded-md text-sm transition-all cursor-pointer border"
+  const activeBg = theme === 'dark' ? 'rgba(255,255,255,0.12)' : 'rgba(0,0,0,0.08)'
+  const activeBorder = theme === 'dark' ? 'rgba(255,255,255,0.25)' : 'rgba(0,0,0,0.2)'
+  const inactiveBorder = theme === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'
 
   return (
-    <div className="flex flex-col items-center gap-5">
-      {/* Style & Speed row */}
-      <div className="flex flex-wrap justify-center gap-6">
-        {/* Style */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs opacity-40 mr-1">スタイル</span>
+    <div className="flex flex-col items-center gap-7">
+      {/* Style & Speed */}
+      <div className="flex flex-wrap justify-center gap-8">
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs opacity-35 mr-1">書体</span>
           {STYLES.map((s) => (
             <button
               key={s.value}
-              onClick={() => onStyleChange(s.value)}
+              onClick={() => onFontStyleChange(s.value)}
               className={btnBase}
               style={{
-                background: style === s.value ? activeBg : 'transparent',
-                borderColor: style === s.value ? activeBorder : inactiveBorder,
+                background: fontStyle === s.value ? activeBg : 'transparent',
+                borderColor: fontStyle === s.value ? activeBorder : inactiveBorder,
               }}
             >
               {s.label}
@@ -64,9 +57,8 @@ export default function Controls({
           ))}
         </div>
 
-        {/* Speed */}
-        <div className="flex items-center gap-2">
-          <span className="text-xs opacity-40 mr-1">速度</span>
+        <div className="flex items-center gap-2.5">
+          <span className="text-xs opacity-35 mr-1">速度</span>
           {SPEEDS.map((s) => (
             <button
               key={s.value}
@@ -84,11 +76,11 @@ export default function Controls({
       </div>
 
       {/* Action buttons */}
-      <div className="flex gap-3">
+      <div className="flex gap-4">
         <button
           onClick={onPlay}
           disabled={!text}
-          className="px-8 py-3 rounded-lg text-base font-bold transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
+          className="px-10 py-3.5 rounded-lg text-base font-bold transition-all cursor-pointer disabled:opacity-30 disabled:cursor-not-allowed"
           style={{
             background: theme === 'dark' ? '#e8e4dc' : '#1a1a1a',
             color: theme === 'dark' ? '#0D0D0D' : '#F5F0E8',
@@ -99,18 +91,18 @@ export default function Controls({
 
         <button
           onClick={onShare}
-          disabled={!text}
-          className="px-6 py-3 rounded-lg text-base transition-all cursor-pointer border disabled:opacity-30 disabled:cursor-not-allowed"
+          disabled={!text || recording}
+          className="px-8 py-3.5 rounded-lg text-base transition-all cursor-pointer border disabled:opacity-30 disabled:cursor-not-allowed"
           style={{
             borderColor: theme === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
           }}
         >
-          共有
+          {recording ? '録画中...' : '📹 動画を保存'}
         </button>
 
         <button
           onClick={onThemeToggle}
-          className="px-4 py-3 rounded-lg text-base transition-all cursor-pointer border"
+          className="px-5 py-3.5 rounded-lg text-base transition-all cursor-pointer border"
           style={{
             borderColor: theme === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
           }}

@@ -42,14 +42,6 @@ body.theme-dark {
   animation-delay: var(--delay);
 }
 
-.stroke-fude {
-  stroke-width: 4;
-}
-
-.stroke-pen {
-  stroke-width: 2;
-}
-
 /* Fade in for unsupported characters */
 @keyframes fade-in-char {
   from { opacity: 0; }
