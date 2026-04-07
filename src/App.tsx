@@ -177,6 +177,7 @@ export default function App() {
       >
         <p>DOMOJI — Stroke Animation Generator</p>
         <p className="mt-1">Stroke data: KanjiVG (CC BY-SA 3.0)</p>
+        <p className="mt-1">v0.7</p>
       </footer>
     </div>
   )
