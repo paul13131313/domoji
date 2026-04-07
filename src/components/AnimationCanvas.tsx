@@ -1,10 +1,9 @@
 import { useMemo, forwardRef, useImperativeHandle, useRef } from 'react'
 import { kanaData } from '../data/kana-strokes'
-import type { FontStyle, Speed } from '../App'
+import type { Speed } from '../App'
 
 interface Props {
   text: string
-  fontStyle: FontStyle
   speed: Speed
   playing: boolean
   playKey: number
@@ -17,13 +16,8 @@ const SPEED_MAP: Record<Speed, { strokeDuration: number; strokeGap: number; char
   fast: { strokeDuration: 0.2, strokeGap: 0.04, charGap: 0.08 },
 }
 
-const FONT_MAP: Record<FontStyle, string> = {
-  gothic: "'Noto Sans JP', 'Hiragino Kaku Gothic ProN', sans-serif",
-  mincho: "'Zen Old Mincho', 'Hiragino Mincho ProN', serif",
-}
-
 const AnimationCanvas = forwardRef<{ getCanvasEl: () => HTMLDivElement | null }, Props>(
-  ({ text, fontStyle, speed, playing, playKey, theme }, ref) => {
+  ({ text, speed, playing, playKey, theme }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null)
 
     useImperativeHandle(ref, () => ({
@@ -94,7 +88,7 @@ const AnimationCanvas = forwardRef<{ getCanvasEl: () => HTMLDivElement | null },
               const y = row * (cellSize + rowGap)
               const data = kanaData[char]
               const baseDelay = charDelayMap.get(`${row}-${col}`) || 0
-              const strokeWidth = fontStyle === 'gothic' ? 5 : 3
+              const strokeWidth = 3
 
               if (!data) {
                 return (
@@ -105,7 +99,7 @@ const AnimationCanvas = forwardRef<{ getCanvasEl: () => HTMLDivElement | null },
                       textAnchor="middle"
                       fontSize="70"
                       fill={strokeColor}
-                      fontFamily={FONT_MAP[fontStyle]}
+                      fontFamily="'Zen Old Mincho', serif"
                       className={playing ? 'char-fadein' : ''}
                       style={playing ? { '--delay': `${baseDelay}s` } as React.CSSProperties : { opacity: 1 }}
                     >

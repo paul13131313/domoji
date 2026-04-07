@@ -1,8 +1,6 @@
-import type { FontStyle, Speed } from '../App'
+import type { Speed } from '../App'
 
 interface Props {
-  fontStyle: FontStyle
-  onFontStyleChange: (s: FontStyle) => void
   speed: Speed
   onSpeedChange: (s: Speed) => void
   onPlay: () => void
@@ -13,11 +11,6 @@ interface Props {
   recording: boolean
 }
 
-const STYLES: { value: FontStyle; label: string }[] = [
-  { value: 'mincho', label: '明朝' },
-  { value: 'gothic', label: 'ゴシック' },
-]
-
 const SPEEDS: { value: Speed; label: string }[] = [
   { value: 'slow', label: 'ゆっくり' },
   { value: 'normal', label: '普通' },
@@ -25,7 +18,6 @@ const SPEEDS: { value: Speed; label: string }[] = [
 ]
 
 export default function Controls({
-  fontStyle, onFontStyleChange,
   speed, onSpeedChange,
   onPlay, onShare, text,
   theme, onThemeToggle,
@@ -38,41 +30,22 @@ export default function Controls({
 
   return (
     <div className="flex flex-col items-center gap-7">
-      {/* Style & Speed */}
-      <div className="flex flex-wrap justify-center gap-8">
-        <div className="flex items-center gap-2.5">
-          <span className="text-xs opacity-35 mr-1">書体</span>
-          {STYLES.map((s) => (
-            <button
-              key={s.value}
-              onClick={() => onFontStyleChange(s.value)}
-              className={btnBase}
-              style={{
-                background: fontStyle === s.value ? activeBg : 'transparent',
-                borderColor: fontStyle === s.value ? activeBorder : inactiveBorder,
-              }}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
-
-        <div className="flex items-center gap-2.5">
-          <span className="text-xs opacity-35 mr-1">速度</span>
-          {SPEEDS.map((s) => (
-            <button
-              key={s.value}
-              onClick={() => onSpeedChange(s.value)}
-              className={btnBase}
-              style={{
-                background: speed === s.value ? activeBg : 'transparent',
-                borderColor: speed === s.value ? activeBorder : inactiveBorder,
-              }}
-            >
-              {s.label}
-            </button>
-          ))}
-        </div>
+      {/* Speed */}
+      <div className="flex items-center gap-2.5">
+        <span className="text-xs opacity-35 mr-1">速度</span>
+        {SPEEDS.map((s) => (
+          <button
+            key={s.value}
+            onClick={() => onSpeedChange(s.value)}
+            className={btnBase}
+            style={{
+              background: speed === s.value ? activeBg : 'transparent',
+              borderColor: speed === s.value ? activeBorder : inactiveBorder,
+            }}
+          >
+            {s.label}
+          </button>
+        ))}
       </div>
 
       {/* Action buttons */}

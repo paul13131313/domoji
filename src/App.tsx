@@ -3,7 +3,6 @@ import TextInput from './components/TextInput'
 import AnimationCanvas from './components/AnimationCanvas'
 import Controls from './components/Controls'
 
-export type FontStyle = 'gothic' | 'mincho'
 export type Speed = 'slow' | 'normal' | 'fast'
 export type Theme = 'light' | 'dark'
 
@@ -11,7 +10,6 @@ function getParams() {
   const params = new URLSearchParams(window.location.search)
   return {
     text: params.get('text') || '',
-    style: (params.get('style') as FontStyle) || 'mincho',
     speed: (params.get('speed') as Speed) || 'normal',
   }
 }
@@ -19,7 +17,6 @@ function getParams() {
 export default function App() {
   const initial = getParams()
   const [text, setText] = useState(initial.text)
-  const [fontStyle, setFontStyle] = useState<FontStyle>(initial.style)
   const [speed, setSpeed] = useState<Speed>(initial.speed)
   const [theme, setTheme] = useState<Theme>('dark')
   const [playing, setPlaying] = useState(false)
@@ -120,7 +117,6 @@ export default function App() {
           <AnimationCanvas
             ref={canvasRef}
             text={text}
-            fontStyle={fontStyle}
             speed={speed}
             playing={playing}
             playKey={playKey}
@@ -131,8 +127,6 @@ export default function App() {
         {/* Controls */}
         <div className="mb-8">
           <Controls
-            fontStyle={fontStyle}
-            onFontStyleChange={setFontStyle}
             speed={speed}
             onSpeedChange={setSpeed}
             onPlay={handlePlay}
