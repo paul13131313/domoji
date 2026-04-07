@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  --bg-light: #F5F0E8;
+  --bg-dark: #0D0D0D;
+  --fg-light: #1a1a1a;
+  --fg-dark: #e8e4dc;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Zen Old Mincho', serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.theme-light {
+  background: var(--bg-light);
+  color: var(--fg-light);
+}
+
+body.theme-dark {
+  background: var(--bg-dark);
+  color: var(--fg-dark);
+}
+
+@keyframes draw-stroke {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.stroke-animate {
+  fill: none;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  animation: draw-stroke var(--duration) ease forwards;
+  animation-delay: var(--delay);
+}
+
+.stroke-fude {
+  stroke-width: 4;
+}
+
+.stroke-pen {
+  stroke-width: 2;
+}
+
+/* Fade in for unsupported characters */
+@keyframes fade-in-char {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.char-fadein {
+  animation: fade-in-char 0.5s ease forwards;
+  animation-delay: var(--delay);
+  opacity: 0;
+}
