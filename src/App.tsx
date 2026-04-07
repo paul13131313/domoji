@@ -49,34 +49,31 @@ export default function App() {
     if (!text) return
     setRecording(true)
 
-    // Start recording, then play animation
-    setPlaying(false)
-    await new Promise((r) => setTimeout(r, 50))
-
     const container = canvasRef.current?.getCanvasEl()
     if (!container) {
       setRecording(false)
       return
     }
 
-    // Use canvas-based recording
-    const { recordAnimation } = await import('./utils/recorder')
-    setPlaying(true)
-    setPlayKey((k) => k + 1)
-
     try {
+      const { recordAnimation } = await import('./utils/recorder')
       const blob = await recordAnimation(container, text, speed)
       setRecording(false)
 
-      // 前のURLを解放
-      if (videoUrl) URL.revokeObjectURL(videoUrl)
+      const file = new File([blob], `domoji.gif`, { type: 'image/gif' })
 
-      const url = URL.createObjectURL(blob)
-      setVideoUrl(url)
+      // iOS/Android: Web Share APIでShare Sheet → 写真に保存
+      if (navigator.share && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file] })
+      } else {
+        // PC: プレビューモーダル表示
+        if (videoUrl) URL.revokeObjectURL(videoUrl)
+        setVideoUrl(URL.createObjectURL(blob))
+      }
     } catch {
       setRecording(false)
     }
-  }, [text, speed])
+  }, [text, speed, videoUrl])
 
   return (
     <div className="min-h-screen flex flex-col">

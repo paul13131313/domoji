@@ -32,7 +32,7 @@ body.theme-dark {
   fill: none;
   stroke-linecap: round;
   stroke-linejoin: round;
-  animation: draw-stroke var(--duration) ease forwards;
+  animation: draw-stroke var(--duration) cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
   animation-delay: var(--delay);
 }
 

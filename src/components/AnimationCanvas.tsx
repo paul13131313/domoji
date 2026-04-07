@@ -1,4 +1,4 @@
-import { useMemo, forwardRef, useImperativeHandle, useRef } from 'react'
+import { useMemo, forwardRef, useImperativeHandle, useRef, useEffect, useCallback } from 'react'
 import { kanaData } from '../data/kana-strokes'
 import type { Speed } from '../App'
 
@@ -11,14 +11,15 @@ interface Props {
 }
 
 const SPEED_MAP: Record<Speed, { strokeDuration: number; strokeGap: number; charGap: number }> = {
-  slow: { strokeDuration: 0.6, strokeGap: 0.15, charGap: 0.3 },
-  normal: { strokeDuration: 0.4, strokeGap: 0.08, charGap: 0.15 },
-  fast: { strokeDuration: 0.2, strokeGap: 0.04, charGap: 0.08 },
+  slow: { strokeDuration: 0.7, strokeGap: 0.12, charGap: 0.25 },
+  normal: { strokeDuration: 0.45, strokeGap: 0.06, charGap: 0.12 },
+  fast: { strokeDuration: 0.22, strokeGap: 0.03, charGap: 0.06 },
 }
 
 const AnimationCanvas = forwardRef<{ getCanvasEl: () => HTMLDivElement | null }, Props>(
   ({ text, speed, playing, playKey, theme }, ref) => {
     const containerRef = useRef<HTMLDivElement>(null)
+    const svgRef = useRef<SVGSVGElement>(null)
 
     useImperativeHandle(ref, () => ({
       getCanvasEl: () => containerRef.current,
@@ -27,7 +28,6 @@ const AnimationCanvas = forwardRef<{ getCanvasEl: () => HTMLDivElement | null },
     const timing = SPEED_MAP[speed]
     const strokeColor = theme === 'dark' ? '#e8e4dc' : '#1a1a1a'
 
-    // Split text into lines by \n, then each line into chars
     const lines = text.split('\n').map((line) => [...line])
     const allChars = lines.flat()
 
@@ -35,32 +35,48 @@ const AnimationCanvas = forwardRef<{ getCanvasEl: () => HTMLDivElement | null },
     const gap = 12
     const rowGap = 16
 
-    // Calculate SVG dimensions
     const maxCols = Math.max(...lines.map((l) => l.length), 1)
     const svgWidth = maxCols * (cellSize + gap) - gap
     const svgHeight = lines.length * (cellSize + rowGap) - rowGap
 
-    // Calculate cumulative delays across ALL chars (left-to-right, top-to-bottom)
     const charDelayMap = useMemo(() => {
       const map = new Map<string, number>()
       let cumulative = 0
-      let idx = 0
       for (let row = 0; row < lines.length; row++) {
         for (let col = 0; col < lines[row].length; col++) {
           const char = lines[row][col]
-          const key = `${row}-${col}`
-          map.set(key, cumulative)
+          map.set(`${row}-${col}`, cumulative)
           const data = kanaData[char]
           if (data) {
             cumulative += data.strokes.length * (timing.strokeDuration + timing.strokeGap) + timing.charGap
           } else {
             cumulative += timing.strokeDuration + timing.charGap
           }
-          idx++
         }
       }
       return map
     }, [text, speed])
+
+    // After render, measure actual path lengths and apply them
+    const applyRealLengths = useCallback(() => {
+      const svg = svgRef.current
+      if (!svg) return
+      const paths = svg.querySelectorAll<SVGPathElement>('path[data-stroke]')
+      paths.forEach((path) => {
+        const len = path.getTotalLength()
+        path.style.strokeDasharray = `${len}`
+        path.style.strokeDashoffset = `${len}`
+      })
+    }, [])
+
+    useEffect(() => {
+      if (playing) {
+        // Small delay to ensure DOM is rendered
+        requestAnimationFrame(() => {
+          applyRealLengths()
+        })
+      }
+    }, [playing, playKey, applyRealLengths])
 
     if (allChars.length === 0) {
       return (
@@ -73,6 +89,7 @@ const AnimationCanvas = forwardRef<{ getCanvasEl: () => HTMLDivElement | null },
     return (
       <div ref={containerRef} className="flex justify-center w-full">
         <svg
+          ref={svgRef}
           key={playKey}
           viewBox={`0 0 ${svgWidth} ${svgHeight}`}
           className="w-full"
@@ -88,7 +105,6 @@ const AnimationCanvas = forwardRef<{ getCanvasEl: () => HTMLDivElement | null },
               const y = row * (cellSize + rowGap)
               const data = kanaData[char]
               const baseDelay = charDelayMap.get(`${row}-${col}`) || 0
-              const strokeWidth = 3
 
               if (!data) {
                 return (
@@ -117,15 +133,17 @@ const AnimationCanvas = forwardRef<{ getCanvasEl: () => HTMLDivElement | null },
                       <path
                         key={si}
                         d={stroke.d}
+                        data-stroke="true"
                         fill="none"
                         stroke={strokeColor}
-                        strokeWidth={strokeWidth}
+                        strokeWidth={3}
                         strokeLinecap="round"
                         strokeLinejoin="round"
                         className={playing ? 'stroke-animate' : ''}
                         style={
                           playing
                             ? {
+                                // Initial values — will be overridden by getTotalLength
                                 strokeDasharray: stroke.length,
                                 strokeDashoffset: stroke.length,
                                 '--duration': `${timing.strokeDuration}s`,
