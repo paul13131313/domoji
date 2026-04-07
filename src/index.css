@@ -7,12 +7,6 @@
   --fg-dark: #e8e4dc;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
-}
-
 body {
   font-family: 'Zen Old Mincho', serif;
   -webkit-font-smoothing: antialiased;
