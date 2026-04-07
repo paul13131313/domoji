@@ -128,7 +128,7 @@ export default function App() {
         </div>
       </main>
 
-      {/* Video Preview Modal */}
+      {/* GIF Preview Modal */}
       {videoUrl && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center"
@@ -139,30 +139,27 @@ export default function App() {
             className="flex flex-col items-center gap-6 p-6 max-w-lg w-full mx-4"
             onClick={(e) => e.stopPropagation()}
           >
-            <video
+            <img
               src={videoUrl}
-              controls
-              autoPlay
-              loop
-              playsInline
+              alt="書き順アニメーション"
               className="w-full rounded-lg"
               style={{ maxHeight: '60vh' }}
             />
             <p className="text-white/60 text-xs text-center">
-              動画を長押し or 右クリックで保存できます
+              画像を長押しして「写真に保存」できます
             </p>
             <div className="flex gap-4">
               <button
                 onClick={() => {
                   const a = document.createElement('a')
                   a.href = videoUrl
-                  a.download = `domoji-${text}.webm`
+                  a.download = `domoji-${text}.gif`
                   a.click()
                 }}
                 className="px-6 py-3 rounded-lg text-sm font-bold cursor-pointer"
                 style={{ background: '#e8e4dc', color: '#0D0D0D' }}
               >
-                ⬇ ダウンロード
+                ⬇ 保存
               </button>
               <button
                 onClick={() => { URL.revokeObjectURL(videoUrl); setVideoUrl(null) }}

@@ -1,5 +1,7 @@
 import type { Speed } from '../App'
 import { kanaData } from '../data/kana-strokes'
+// @ts-expect-error gif.js has no types
+import GIF from 'gif.js'
 
 const SPEED_MAP: Record<Speed, { strokeDuration: number; strokeGap: number; charGap: number }> = {
   slow: { strokeDuration: 0.6, strokeGap: 0.15, charGap: 0.3 },
@@ -20,6 +22,10 @@ interface FallbackChar {
   y: number
   startTime: number
   duration: number
+}
+
+function easeOut(t: number): number {
+  return 1 - (1 - t) * (1 - t)
 }
 
 export async function recordAnimation(
@@ -85,21 +91,16 @@ export async function recordAnimation(
 
   const totalDuration = cumTime + 0.8
 
-  // Canvas を DOM に追加（非表示だが存在させる）
+  // Canvas for rendering frames
   const canvas = document.createElement('canvas')
   canvas.width = canvasW
   canvas.height = canvasH
-  canvas.style.position = 'fixed'
-  canvas.style.top = '-9999px'
-  canvas.style.left = '-9999px'
-  document.body.appendChild(canvas)
   const ctx = canvas.getContext('2d')!
 
   const isDark = document.body.classList.contains('theme-dark')
   const bgColor = isDark ? '#0D0D0D' : '#F5F0E8'
   const strokeColor = isDark ? '#e8e4dc' : '#1a1a1a'
 
-  // 描画関数
   function drawFrame(elapsed: number) {
     ctx.fillStyle = bgColor
     ctx.fillRect(0, 0, canvasW, canvasH)
@@ -139,54 +140,39 @@ export async function recordAnimation(
     ctx.restore()
   }
 
-  // MediaRecorder セットアップ
-  const stream = canvas.captureStream(0) // 0 = manual frame capture
-  const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
-    ? 'video/webm;codecs=vp9'
-    : 'video/webm'
-  const recorder = new MediaRecorder(stream, {
-    mimeType,
-    videoBitsPerSecond: 3_000_000,
+  // GIF生成
+  const workerScript = URL.createObjectURL(
+    new Blob([`self.onmessage=function(e){self.postMessage(e.data)}`], { type: 'text/javascript' })
+  )
+
+  const gif = new GIF({
+    workers: 2,
+    quality: 10,
+    width: canvasW,
+    height: canvasH,
+    workerScript,
   })
 
-  const chunks: Blob[] = []
-  recorder.ondataavailable = (e) => {
-    if (e.data.size > 0) chunks.push(e.data)
-  }
-
-  const done = new Promise<Blob>((resolve) => {
-    recorder.onstop = () => {
-      document.body.removeChild(canvas)
-      resolve(new Blob(chunks, { type: 'video/webm' }))
-    }
-  })
-
-  recorder.start(100) // 100ms ごとにデータをフラッシュ
-
-  // フレームを固定間隔で描画
-  const fps = 30
-  const frameInterval = 1000 / fps
+  const fps = 15 // GIFは15fpsで十分
   const totalFrames = Math.ceil(totalDuration * fps)
-  const track = stream.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void }
+  const frameDelay = Math.round(1000 / fps)
 
   for (let i = 0; i <= totalFrames; i++) {
     const elapsed = i / fps
     drawFrame(elapsed)
-
-    // Manual frame request (if supported)
-    if (track.requestFrame) {
-      track.requestFrame()
-    }
-
-    await new Promise((r) => setTimeout(r, frameInterval))
+    gif.addFrame(ctx, { copy: true, delay: frameDelay })
   }
 
-  // 最後のフレームを少し保持
-  await new Promise((r) => setTimeout(r, 300))
-  recorder.stop()
-  return done
-}
+  // 最後のフレームを1秒保持
+  gif.addFrame(ctx, { copy: true, delay: 1000 })
 
-function easeOut(t: number): number {
-  return 1 - (1 - t) * (1 - t)
+  const blob = await new Promise<Blob>((resolve) => {
+    gif.on('finished', (blob: Blob) => {
+      URL.revokeObjectURL(workerScript)
+      resolve(blob)
+    })
+    gif.render()
+  })
+
+  return blob
 }

@@ -70,7 +70,7 @@ export default function Controls({
             borderColor: theme === 'dark' ? 'rgba(255,255,255,0.2)' : 'rgba(0,0,0,0.15)',
           }}
         >
-          {recording ? '録画中...' : '📹 動画を保存'}
+          {recording ? '生成中...' : '📷 GIFを保存'}
         </button>
 
         <button
