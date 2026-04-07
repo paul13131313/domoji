@@ -14,9 +14,12 @@ interface StrokeJob {
   duration: number
 }
 
-// SVG path "d" を Path2D に変換
-function makePath2D(d: string): Path2D {
-  return new Path2D(d)
+interface FallbackChar {
+  char: string
+  x: number
+  y: number
+  startTime: number
+  duration: number
 }
 
 export async function recordAnimation(
@@ -26,8 +29,6 @@ export async function recordAnimation(
 ): Promise<Blob> {
   const timing = SPEED_MAP[speed]
   const lines = text.split('\n').map((line) => [...line])
-  const allChars = lines.flat()
-  if (allChars.length === 0) throw new Error('No text')
 
   const cellSize = 109
   const gap = 12
@@ -37,13 +38,13 @@ export async function recordAnimation(
 
   const contentW = maxCols * (cellSize + gap) - gap
   const contentH = lines.length * (cellSize + rowGap) - rowGap
-  const scale = 3
+  const scale = 2
   const canvasW = (contentW + padding * 2) * scale
   const canvasH = (contentH + padding * 2) * scale
 
-  // Build stroke jobs with timing
+  // Build stroke jobs
   const jobs: StrokeJob[] = []
-  const fallbackChars: { char: string; x: number; y: number; startTime: number; duration: number }[] = []
+  const fallbackChars: FallbackChar[] = []
   let cumTime = 0
 
   for (let row = 0; row < lines.length; row++) {
@@ -66,10 +67,9 @@ export async function recordAnimation(
       }
 
       for (const stroke of data.strokes) {
-        // Offset path by cell position
         const path = new Path2D()
         const m = new DOMMatrix().translate(ox, oy)
-        path.addPath(makePath2D(stroke.d), m)
+        path.addPath(new Path2D(stroke.d), m)
 
         jobs.push({
           path,
@@ -83,22 +83,70 @@ export async function recordAnimation(
     }
   }
 
-  const totalDuration = cumTime + 0.5 // 0.5s padding
+  const totalDuration = cumTime + 0.8
 
-  // Create canvas
+  // Canvas を DOM に追加（非表示だが存在させる）
   const canvas = document.createElement('canvas')
   canvas.width = canvasW
   canvas.height = canvasH
+  canvas.style.position = 'fixed'
+  canvas.style.top = '-9999px'
+  canvas.style.left = '-9999px'
+  document.body.appendChild(canvas)
   const ctx = canvas.getContext('2d')!
 
-  // MediaRecorder
-  const stream = canvas.captureStream(30)
+  const isDark = document.body.classList.contains('theme-dark')
+  const bgColor = isDark ? '#0D0D0D' : '#F5F0E8'
+  const strokeColor = isDark ? '#e8e4dc' : '#1a1a1a'
+
+  // 描画関数
+  function drawFrame(elapsed: number) {
+    ctx.fillStyle = bgColor
+    ctx.fillRect(0, 0, canvasW, canvasH)
+
+    ctx.save()
+    ctx.scale(scale, scale)
+
+    ctx.strokeStyle = strokeColor
+    ctx.lineWidth = 3
+    ctx.lineCap = 'round'
+    ctx.lineJoin = 'round'
+
+    for (const job of jobs) {
+      if (elapsed < job.startTime) continue
+      const progress = Math.min((elapsed - job.startTime) / job.duration, 1)
+      const dashOffset = job.length * (1 - easeOut(progress))
+      ctx.setLineDash([job.length])
+      ctx.lineDashOffset = dashOffset
+      ctx.stroke(job.path)
+    }
+
+    ctx.setLineDash([])
+    ctx.lineDashOffset = 0
+
+    ctx.fillStyle = strokeColor
+    ctx.textAlign = 'center'
+    ctx.textBaseline = 'middle'
+    ctx.font = "70px 'Zen Old Mincho', serif"
+
+    for (const fc of fallbackChars) {
+      if (elapsed < fc.startTime) continue
+      const progress = Math.min((elapsed - fc.startTime) / fc.duration, 1)
+      ctx.globalAlpha = easeOut(progress)
+      ctx.fillText(fc.char, fc.x, fc.y)
+    }
+    ctx.globalAlpha = 1
+    ctx.restore()
+  }
+
+  // MediaRecorder セットアップ
+  const stream = canvas.captureStream(0) // 0 = manual frame capture
   const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
     ? 'video/webm;codecs=vp9'
     : 'video/webm'
   const recorder = new MediaRecorder(stream, {
     mimeType,
-    videoBitsPerSecond: 2_000_000,
+    videoBitsPerSecond: 3_000_000,
   })
 
   const chunks: Blob[] = []
@@ -108,79 +156,37 @@ export async function recordAnimation(
 
   const done = new Promise<Blob>((resolve) => {
     recorder.onstop = () => {
+      document.body.removeChild(canvas)
       resolve(new Blob(chunks, { type: 'video/webm' }))
     }
   })
 
-  recorder.start()
+  recorder.start(100) // 100ms ごとにデータをフラッシュ
 
-  const isDark = document.body.classList.contains('theme-dark')
-  const bgColor = isDark ? '#0D0D0D' : '#F5F0E8'
-  const strokeColor = isDark ? '#e8e4dc' : '#1a1a1a'
+  // フレームを固定間隔で描画
+  const fps = 30
+  const frameInterval = 1000 / fps
+  const totalFrames = Math.ceil(totalDuration * fps)
+  const track = stream.getVideoTracks()[0] as MediaStreamTrack & { requestFrame?: () => void }
 
-  // Render loop
-  const startMs = performance.now()
+  for (let i = 0; i <= totalFrames; i++) {
+    const elapsed = i / fps
+    drawFrame(elapsed)
 
-  await new Promise<void>((resolve) => {
-    function renderFrame() {
-      const elapsed = (performance.now() - startMs) / 1000
-
-      // Clear
-      ctx.fillStyle = bgColor
-      ctx.fillRect(0, 0, canvasW, canvasH)
-
-      ctx.save()
-      ctx.scale(scale, scale)
-
-      // Draw strokes
-      ctx.strokeStyle = strokeColor
-      ctx.lineWidth = 3
-      ctx.lineCap = 'round'
-      ctx.lineJoin = 'round'
-
-      for (const job of jobs) {
-        if (elapsed < job.startTime) continue
-
-        const progress = Math.min((elapsed - job.startTime) / job.duration, 1)
-        const dashOffset = job.length * (1 - progress)
-
-        ctx.setLineDash([job.length])
-        ctx.lineDashOffset = dashOffset
-        ctx.stroke(job.path)
-      }
-
-      // Reset dash for fallback text
-      ctx.setLineDash([])
-      ctx.lineDashOffset = 0
-
-      // Draw fallback characters
-      ctx.fillStyle = strokeColor
-      ctx.textAlign = 'center'
-      ctx.textBaseline = 'middle'
-      ctx.font = "70px 'Zen Old Mincho', serif"
-
-      for (const fc of fallbackChars) {
-        if (elapsed < fc.startTime) continue
-        const progress = Math.min((elapsed - fc.startTime) / fc.duration, 1)
-        ctx.globalAlpha = progress
-        ctx.fillText(fc.char, fc.x, fc.y)
-      }
-      ctx.globalAlpha = 1
-
-      ctx.restore()
-
-      if (elapsed < totalDuration) {
-        requestAnimationFrame(renderFrame)
-      } else {
-        resolve()
-      }
+    // Manual frame request (if supported)
+    if (track.requestFrame) {
+      track.requestFrame()
     }
 
-    requestAnimationFrame(renderFrame)
-  })
+    await new Promise((r) => setTimeout(r, frameInterval))
+  }
 
-  // Small delay to ensure last frame is captured
-  await new Promise((r) => setTimeout(r, 200))
+  // 最後のフレームを少し保持
+  await new Promise((r) => setTimeout(r, 300))
   recorder.stop()
   return done
+}
+
+function easeOut(t: number): number {
+  return 1 - (1 - t) * (1 - t)
 }
